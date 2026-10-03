@@ -1,0 +1,37 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "description": "Store users data",
+      "fields": [
+        { "name": "uid", "type": "string", "description": "User ID" },
+        { "name": "email", "type": "string", "description": "User email" },
+        { "name": "displayName", "type": "string", "description": "User name" },
+        { "name": "photoURL", "type": "string", "description": "User profile picture" },
+        { "name": "createdAt", "type": "timestamp", "description": "Creation timestamp" },
+        { "name": "lastLoginAt", "type": "timestamp", "description": "Last login timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null && request.auth.uid == document",
+        "write": "request.auth != null && request.auth.uid == document"
+      },
+      "subcollections": [
+        {
+          "name": "progress",
+          "description": "Store offline progress items synced to the cloud",
+          "fields": [
+            { "name": "phraseId", "type": "string", "description": "ID of the phrase" },
+            { "name": "isFavorited", "type": "boolean", "description": "Is favorited" },
+            { "name": "masteryScore", "type": "number", "description": "Score" },
+            { "name": "lastPracticedAt", "type": "string", "description": "ISO date string" },
+            { "name": "updatedAt", "type": "timestamp", "description": "Last synced" }
+          ],
+          "rules": {
+            "read": "request.auth != null && request.auth.uid == parent_document",
+            "write": "request.auth != null && request.auth.uid == parent_document"
+          }
+        }
+      ]
+    }
+  ]
+}

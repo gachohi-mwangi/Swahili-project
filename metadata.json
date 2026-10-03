@@ -1,0 +1,6 @@
+{
+  "name": "Jambo Swahili!",
+  "description": "A mobile-first Progressive Web App (PWA) for short-term tourists in East Africa to practice conversational Swahili and essential market negotiations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
