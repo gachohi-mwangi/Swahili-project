@@ -79,14 +79,15 @@ export async function handler(event: NetlifyEvent) {
       }
     });
 
+    const promptText = (text.endsWith('.') || text.endsWith('?') || text.endsWith('!')) ? text : (text + '.');
     const response = await ai.models.generateContent({
       model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text }] }],
+      contents: [{ parts: [{ text: promptText }] }],
       config: {
         responseModalities: ["AUDIO"],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: "Kore" },
+            prebuiltVoiceConfig: { voiceName: "Aoede" },
           },
         },
       },

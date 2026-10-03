@@ -144,7 +144,7 @@ export default function PronunciationModal({
       setIsPlayingAudio(true);
       await playSwahiliTTS(phrase.swahili_text, () => {
         setIsPlayingAudio(false);
-      });
+      }, phrase.audio_url);
     } catch {
       setIsPlayingAudio(false);
     }

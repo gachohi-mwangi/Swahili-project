@@ -14,9 +14,9 @@ export default function Saved() {
     return MOCK_PHRASES.filter(p => savedIds.includes(p.id));
   }, [progress]);
 
-  const playSound = async (text: string) => {
+  const playSound = async (text: string, audioUrl?: string) => {
     try {
-      await playSwahiliTTS(text);
+      await playSwahiliTTS(text, undefined, audioUrl);
     } catch (err) {
       console.error(err);
     }
@@ -48,7 +48,7 @@ export default function Saved() {
             return (
               <button
                 key={phrase.id}
-                onClick={() => playSound(phrase.swahili_text)}
+                onClick={() => playSound(phrase.swahili_text, phrase.audio_url)}
                 className="relative flex flex-col text-left p-4 rounded-3xl border-l-[8px] border-slate-300 bg-white shadow-sm active:scale-[0.98] transition-all group"
               >
                 <div className="flex justify-between items-center w-full">
@@ -72,7 +72,7 @@ export default function Saved() {
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        playSound(phrase.swahili_text);
+                        playSound(phrase.swahili_text, phrase.audio_url);
                       }}
                       title="Listen to native voice"
                       className="w-10 h-10 rounded-full bg-slate-50 shadow-sm flex items-center justify-center text-slate-700 hover:text-swahili-orange hover:bg-orange-50 active:scale-95 transition-all cursor-pointer"

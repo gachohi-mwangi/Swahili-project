@@ -67,14 +67,15 @@ async function startServer() {
         return res.status(400).json({ error: "Text is required" });
       }
 
+      const promptText = (text.endsWith('.') || text.endsWith('?') || text.endsWith('!')) ? text : (text + '.');
       const response = await ai.models.generateContent({
         model: "gemini-3.1-flash-tts-preview",
-        contents: [{ parts: [{ text }] }],
+        contents: [{ parts: [{ text: promptText }] }],
         config: {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
+              prebuiltVoiceConfig: { voiceName: 'Aoede' },
             },
           },
         },

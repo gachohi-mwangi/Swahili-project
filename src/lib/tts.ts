@@ -1,4 +1,5 @@
 const cache = new Map<string, string>();
+const bufferCache = new Map<string, AudioBuffer>();
 
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
@@ -83,10 +84,10 @@ function playFemaleBrowserTTS(text: string, onEnd?: () => void) {
     msg.lang = 'sw-KE';
   }
 
-  // Pitch > 1.0 shifts formants to a feminine, clear voice range (prevents deep male robotic tone)
-  msg.pitch = 1.25;
-  // Slightly relaxed rate for clear, natural Swahili vowel enunciation
-  msg.rate = 0.88;
+  // Pitch ~1.18 creates a warm, natural female speaking frequency (around 215 Hz)
+  msg.pitch = 1.18;
+  // Rate ~0.84 captures authentic unhurried East African penultimate vowel elongation
+  msg.rate = 0.84;
 
   msg.onend = () => {
     if (currentUtterance === msg) {
@@ -112,14 +113,61 @@ function playFemaleBrowserTTS(text: string, onEnd?: () => void) {
   window.speechSynthesis.speak(msg);
 }
 
+// Helper to play an AudioBuffer
+function playBuffer(buffer: AudioBuffer, onEnd?: () => void) {
+  if (!audioCtx) return;
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.onended = () => {
+    if (currentSource === source) {
+      currentSource = null;
+      if (currentOnEnd) {
+        currentOnEnd();
+        currentOnEnd = null;
+      }
+    }
+  };
+  source.start();
+  currentSource = source;
+}
+
+// Check for pre-rendered static WAV files
+async function fetchStaticAudio(url: string, signal: AbortSignal): Promise<AudioBuffer | null> {
+  const cached = bufferCache.get(url);
+  if (cached) return cached;
+
+  if (!audioCtx) return null;
+
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) return null;
+    const arrayBuffer = await res.arrayBuffer();
+
+    // Verify it is a valid WAV audio file by checking 'RIFF' signature
+    if (arrayBuffer.byteLength < 44) return null;
+    const bytes = new Uint8Array(arrayBuffer.slice(0, 4));
+    const header = String.fromCharCode(...bytes);
+    if (header !== 'RIFF') return null;
+
+    const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+    bufferCache.set(url, buffer);
+    return buffer;
+  } catch {
+    return null;
+  }
+}
+
 // Try fetching audio from server endpoints or direct client key
 async function fetchGeminiAudio(text: string, signal: AbortSignal): Promise<string | null> {
+  const promptText = (text.endsWith('.') || text.endsWith('?') || text.endsWith('!')) ? text : (text + '.');
+
   // 1. Try standard /api/tts endpoint
   try {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: promptText }),
       signal
     });
     if (res.ok) {
@@ -130,12 +178,12 @@ async function fetchGeminiAudio(text: string, signal: AbortSignal): Promise<stri
     if (e.name === 'AbortError') throw e;
   }
 
-  // 2. Try Netlify function endpoint directly (in case /api rewrite didn't trigger)
+  // 2. Try Netlify function endpoint directly
   try {
     const res = await fetch('/.netlify/functions/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: promptText }),
       signal
     });
     if (res.ok) {
@@ -156,12 +204,12 @@ async function fetchGeminiAudio(text: string, signal: AbortSignal): Promise<stri
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text }] }],
+            contents: [{ parts: [{ text: promptText }] }],
             generationConfig: {
               responseModalities: ['AUDIO'],
               speechConfig: {
                 voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: 'Kore' }
+                  prebuiltVoiceConfig: { voiceName: 'Aoede' }
                 }
               }
             }
@@ -182,7 +230,7 @@ async function fetchGeminiAudio(text: string, signal: AbortSignal): Promise<stri
   return null;
 }
 
-export async function playSwahiliTTS(text: string, onEnd?: () => void) {
+export async function playSwahiliTTS(text: string, onEnd?: () => void, audioUrl?: string) {
   try {
     stopSwahiliTTS();
     currentOnEnd = onEnd || null;
@@ -196,8 +244,25 @@ export async function playSwahiliTTS(text: string, onEnd?: () => void) {
       await audioCtx.resume();
     }
 
+    // 1. If audioUrl is provided or can be derived from the text, check static WAV file first
+    let staticCandidate = audioUrl ? audioUrl.replace(/\.mp3$/, '.wav') : null;
+    if (!staticCandidate) {
+      const cleanSlug = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+      staticCandidate = `/audio/${cleanSlug}.wav`;
+    }
+
+    if (staticCandidate) {
+      const staticBuffer = await fetchStaticAudio(staticCandidate, currentAbortController.signal);
+      if (staticBuffer) {
+        playBuffer(staticBuffer, onEnd);
+        return;
+      }
+    }
+
+    // 2. Check in-memory base64 cache
     let base64Audio = cache.get(text);
 
+    // 3. Fetch from Gemini Aoede TTS service
     if (!base64Audio) {
       base64Audio = await fetchGeminiAudio(text, currentAbortController.signal);
       if (base64Audio) {
@@ -205,7 +270,7 @@ export async function playSwahiliTTS(text: string, onEnd?: () => void) {
       }
     }
 
-    // If Gemini TTS succeeded with base64 PCM audio
+    // 4. Decode and play raw 16-bit PCM little-endian audio
     if (base64Audio) {
       const binary = atob(base64Audio);
       const bytes = new Uint8Array(binary.length);
@@ -222,31 +287,18 @@ export async function playSwahiliTTS(text: string, onEnd?: () => void) {
       const buffer = audioCtx.createBuffer(1, float32Data.length, 24000);
       buffer.copyToChannel(float32Data, 0);
 
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.onended = () => {
-        if (currentSource === source) {
-          currentSource = null;
-          if (currentOnEnd) {
-            currentOnEnd();
-            currentOnEnd = null;
-          }
-        }
-      };
-      source.start();
-      currentSource = source;
+      playBuffer(buffer, onEnd);
       return;
     }
 
-    // Fallback: If no server/API audio was returned, use female-tuned SpeechSynthesis
+    // 5. Fallback: Warm feminine speech synthesis matching native cadence
     playFemaleBrowserTTS(text, currentOnEnd || undefined);
 
   } catch (error: any) {
     if (error.name === 'AbortError') {
       return;
     }
-    console.warn("Falling back to client voice synthesis:", error);
+    console.warn("TTS playback fallback:", error);
     playFemaleBrowserTTS(text, currentOnEnd || undefined);
   }
 }

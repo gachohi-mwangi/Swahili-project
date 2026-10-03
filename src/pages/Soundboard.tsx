@@ -30,9 +30,9 @@ export default function Soundboard() {
     return filtered;
   }, [searchQuery, activeCategory]);
 
-  const playSound = async (text: string) => {
+  const playSound = async (text: string, audioUrl?: string) => {
     try {
-      await playSwahiliTTS(text);
+      await playSwahiliTTS(text, undefined, audioUrl);
     } catch (err) {
       console.error(err);
     }
@@ -42,7 +42,7 @@ export default function Soundboard() {
     if (mode === 'practice') {
       setPracticingPhrase(phrase);
     } else {
-      playSound(phrase.swahili_text);
+      playSound(phrase.swahili_text, phrase.audio_url);
     }
   };
 
@@ -256,7 +256,7 @@ export default function Soundboard() {
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        playSound(phrase.swahili_text);
+                        playSound(phrase.swahili_text, phrase.audio_url);
                       }}
                       title="Listen to native pronunciation"
                       className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-700 hover:text-swahili-orange hover:bg-orange-50 active:scale-95 transition-all cursor-pointer"
